@@ -17,15 +17,19 @@ next(commit_itr)
 
 for prev, commit in zip(repo.iter_commits('master', max_count=n_commits),
                         commit_itr):
-    with open(os.path.join(data_dir, '%s.msg' % commit.hexsha), 'w') as f:
-        f.write(commit.message)
+    if len(commit.parents) == 1:
+        diffs = commit.parents[0].diff(commit, create_patch=True)
+        for diff in diffs:
+            d = ''
+            try:
+                d = diff.diff.decode('utf-8')
+            except:
+                print(diff.diff)
+                continue
 
-    with open(os.path.join(data_dir, '%s.diff' % commit.hexsha), 'w') as f:
-        if len(commit.parents) == 1:
-            diffs = commit.parents[0].diff(commit, create_patch=True)
-            for diff in diffs:
-                try:
-                    d = diff.diff.decode('utf-8')
-                    f.write(d)
-                except:
-                    print(diff.diff)
+            with open(os.path.join(data_dir,
+                                   '%s.diff' % commit.hexsha), 'w') as f:
+                f.write(d[:500])
+
+        with open(os.path.join(data_dir, '%s.msg' % commit.hexsha), 'w') as f:
+            f.write(commit.message)
