@@ -11,6 +11,7 @@ def get_commit_title(commit):
 
 
 with open(out_file, 'w') as text_file:
-    for commit in repo.iter_commits(max_count=1000):
-        msg = get_commit_title(commit)
-        text_file.write(msg.encode('utf-8') + '\n')
+    for commit in repo.iter_commits():
+        msg = str(get_commit_title(commit))
+        if not msg.startswith('Merge'):
+            text_file.write(msg + '\n')

@@ -1,7 +1,7 @@
 
 def read_process_text(filename):
-    raw_text = open(filename).read()
-    raw_text = raw_text.lower()
+    raw_text = open(filename).readlines()
+    raw_text = ''.join(raw_text).lower()
     raw_text = raw_text.replace('\n', 'X')
     return raw_text
 
