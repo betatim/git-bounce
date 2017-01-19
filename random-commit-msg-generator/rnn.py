@@ -11,13 +11,16 @@ from keras.layers import LSTM
 from keras.callbacks import ModelCheckpoint
 from keras.utils import np_utils
 # load ascii text and covert to lowercase
-filename = "commit-messages.txt"
-raw_text = open(filename).read()
-raw_text = raw_text.lower()
-raw_text = raw_text.replace('\n', 'X')
+from process_text import read_process_text
+from process_text import get_training_data
 
+seq_length = 10
+n_epoch = 10
 
-raw_text = raw_text[0:200000]
+filename = sys.argv[1]
+
+raw_text = read_process_text(filename)
+raw_text = raw_text[0:4000000]
 
 # create mapping of unique chars to integers, and a reverse mapping
 chars = sorted(list(set(raw_text)))
@@ -29,14 +32,9 @@ n_vocab = len(chars)
 print("Total Characters: ", n_chars)
 print("Total Vocab: ", n_vocab)
 # prepare the dataset of input to output pairs encoded as integers
-seq_length = 10
-dataX = []
-dataY = []
-for i in range(0, n_chars - seq_length, 1):
-    seq_in = raw_text[i:i + seq_length]
-    seq_out = raw_text[i + seq_length]
-    dataX.append([char_to_int[char] for char in seq_in])
-    dataY.append(char_to_int[seq_out])
+
+
+dataX, dataY = get_training_data(raw_text, n_chars, seq_length, char_to_int)
 n_patterns = len(dataX)
 print("Total Patterns: ", n_patterns)
 # reshape X to be [samples, time steps, features]
@@ -57,31 +55,40 @@ model.add(Dense(y.shape[1], activation='softmax'))
 # filename = "weights-improvement-47-1.2219-bigger.hdf5"
 # model.load_weights(filename)
 model.compile(loss='categorical_crossentropy', optimizer='adam')
-filepath = "weights-improvement-{epoch:02d}-{loss:.4f}-bigger.hdf5"
-model.fit(X, y, nb_epoch=1, batch_size=64)
-# pick a random seed
-start = numpy.random.randint(0, len(dataX) - 1)
-pattern = dataX[start]
-print("Seed:")
-print("\"", ''.join([int_to_char[value] for value in pattern]), "\"")
-# generate characters
-for i in range(1000):
-    x = numpy.reshape(pattern, (1, len(pattern), 1))
-    x = x / float(n_vocab)
-    prediction = model.predict(x, verbose=0)
-    index = numpy.argmax(prediction)
-    result = int_to_char[index]
-    seq_in = [int_to_char[value] for value in pattern]
-    sys.stdout.write(result)
-    pattern.append(index)
-    pattern = pattern[1:len(pattern)]
-print("\nDone.")
+filepath = "weights-improvement-{epoch:02d}.hdf5"
+checkpoint = ModelCheckpoint(
+    filepath,  verbose=1, save_best_only=True, mode='max')
+callbacks_list = [checkpoint]
+
+model.fit(X, y, nb_epoch=n_epoch, batch_size=64, callbacks=callbacks_list)
 
 
 # serialize model to JSON
 model_json = model.to_json()
-with open("model.json", "w") as json_file:
+with open("model_l%i.json" % (seq_length), "w") as json_file:
     json_file.write(model_json)
 # serialize weights to HDF5
-model.save_weights("model.h5")
+model.save_weights("model_l%i.h5" % (seq_length))
 print("Saved model to disk")
+
+
+counter = 0
+done = False
+start = numpy.random.randint(0, len(dataX) - 1)
+pattern = dataX[start]
+pattern[len(pattern) - 1] = char_to_int['X']
+while not done and counter < 1000:
+    counter += 1
+    x = numpy.reshape(pattern, (1, len(pattern), 1))
+    x = x / float(n_vocab)
+    prediction = model.predict(x, verbose=0)
+    index = numpy.random.choice(numpy.arange(
+        0, len(prediction[0])), p=prediction[0], size=1)[0]
+    result = int_to_char[index]
+    if result == 'X':
+        done = True
+    else:
+        sys.stdout.write(result)
+        pattern.append(index)
+        pattern = pattern[1:len(pattern)]
+print("\nDone.")
